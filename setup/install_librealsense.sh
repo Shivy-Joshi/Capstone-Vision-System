@@ -25,7 +25,7 @@ cmake ../librealsense \
     -DBUILD_PYTHON_BINDINGS=true \
     -DPYTHON_EXECUTABLE=$(which python3) \
     -DFORCE_RSUSB_BACKEND=true \
-    -DBUILD_WITH_CUDA=true
+    -DBUILD_WITH_CUDA=false
 
 echo "[5/7] Compile..."
 make -j$(nproc)
