@@ -33,7 +33,7 @@ def draw_tag(frame, tag):
 
 
 def main():
-    tag_size_m = 0.03  # 30 mm tag; change this to your actual printed tag size
+    tag_size_m = 0.0796  # 30 mm tag; change this to your actual printed tag size in m
 
     pipeline = rs.pipeline()
     config = rs.config()
