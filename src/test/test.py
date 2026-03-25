@@ -1,4 +1,4 @@
-from ..camera.realsense_camera import RealSenseCamera
+from camera.realsense_camera import RealSenseCamera
 
 
 def main():
