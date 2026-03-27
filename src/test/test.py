@@ -15,9 +15,9 @@ def pretty_print_matrix(name: str, matrix_list: list[list[float]]) -> None:
 
 
 def main() -> None:
-    tool_name = "connector_tool"
+    tool_name = "claw_tool"
     config_path = "src/config/tag_targets.json"
-    default_tag_size_m = 0.03
+    default_tag_size_m = 0.08
 
     camera = RealSenseCamera()
     detector = AprilTagDetector(default_tag_size_m=default_tag_size_m)
