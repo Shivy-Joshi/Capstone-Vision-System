@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 from src.camera.realsense_camera import RealSenseCamera
-from src.detections.apriltag_detector import AprilTagDetector
+from src.detection.apriltag_detector import AprilTagDetector
 from src.transformations.apriltag_calculations import AprilTagCalculations
 
 
