@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+import cv2
 import numpy as np
 
 from src.camera.realsense_camera import RealSenseCamera
@@ -43,7 +44,7 @@ class TagCalibration:
             return
 
         self.camera.start()
-        self.camera_intrinsics = self.camera.get_intrinsics()
+        self.camera_intrinsics = self.camera.get_color_intrinsics()
 
         for _ in range(self.warmup_frames):
             self.camera.get_aligned_frames()
@@ -54,6 +55,133 @@ class TagCalibration:
         if self.is_started:
             self.camera.stop()
             self.is_started = False
+
+    @staticmethod
+    def draw_tag_overlay(
+        image: np.ndarray,
+        tag_id: int,
+        tag_data: dict[str, Any],
+    ) -> np.ndarray:
+        display = image.copy()
+
+        corners = np.array(tag_data["corners_px"], dtype=int)
+        center = np.array(tag_data["center_px"], dtype=int)
+        translation = np.array(tag_data["translation_m"], dtype=float)
+
+        cv2.polylines(display, [corners], isClosed=True, color=(0, 255, 0), thickness=2)
+        cv2.circle(display, tuple(center), 5, (0, 0, 255), -1)
+
+        info_lines = [
+            f"Tag ID: {tag_id}",
+            f"X: {translation[0]:.4f} m",
+            f"Y: {translation[1]:.4f} m",
+            f"Z: {translation[2]:.4f} m",
+            "Press R to record calibration",
+            "Press Q to quit",
+        ]
+
+        text_y = 30
+        for line in info_lines:
+            cv2.putText(
+                display,
+                line,
+                (20, text_y),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 255, 0),
+                2,
+                cv2.LINE_AA,
+            )
+            text_y += 30
+
+        return display
+
+    @staticmethod
+    def draw_waiting_overlay(
+        image: np.ndarray,
+        tag_id: int,
+    ) -> np.ndarray:
+        display = image.copy()
+        info_lines = [
+            f"Looking for Tag ID: {tag_id}",
+            "Tag not currently visible",
+            "Press Q to quit",
+        ]
+
+        text_y = 30
+        for line in info_lines:
+            cv2.putText(
+                display,
+                line,
+                (20, text_y),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 0, 255),
+                2,
+                cv2.LINE_AA,
+            )
+            text_y += 30
+
+        return display
+
+    def run_guided_calibration(
+        self,
+        tool_name: str,
+        tag_id: int,
+        sample_count: int,
+        delay_s: float,
+    ) -> dict[str, Any] | None:
+        if not self.is_started:
+            raise RuntimeError("Camera has not been started.")
+        if self.camera_intrinsics is None:
+            raise RuntimeError("Camera intrinsics are unavailable.")
+
+        window_name = "Tag Calibration"
+        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+
+        try:
+            while True:
+                color_frame, _ = self.camera.get_aligned_frames()
+
+                detections = self.detector.detect(
+                    color_image=color_frame,
+                    camera_intrinsics=self.camera_intrinsics,
+                    tag_size_m=self.tag_size_m,
+                )
+
+                tag_data = detections.get(tag_id)
+                if tag_data and tag_data.get("in_frame", False):
+                    display = self.draw_tag_overlay(color_frame, tag_id, tag_data)
+                else:
+                    display = self.draw_waiting_overlay(color_frame, tag_id)
+
+                cv2.imshow(window_name, display)
+                key = cv2.waitKey(1) & 0xFF
+
+                if key == ord("q"):
+                    return None
+
+                if key == ord("r"):
+                    if not tag_data or not tag_data.get("in_frame", False):
+                        print("Cannot record calibration because the tag is not visible.")
+                        continue
+
+                    print("Recording calibration samples...")
+                    avg_translation, avg_rotation = self.collect_samples(
+                        tag_id=tag_id,
+                        sample_count=sample_count,
+                        delay_s=delay_s,
+                    )
+
+                    entry = self.build_tag_target_entry(
+                        tool_name=tool_name,
+                        tag_id=tag_id,
+                        translation_m=avg_translation,
+                        rotation_matrix=avg_rotation,
+                    )
+                    return entry
+        finally:
+            cv2.destroyWindow(window_name)
 
     @staticmethod
     def rotation_matrix_to_quaternion(rotation_matrix: np.ndarray) -> list[float]:
@@ -203,7 +331,7 @@ def merge_into_existing_config(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Calibrate AprilTag target poses for tag_targets.json."
+        description="GUI calibration tool for AprilTag target poses in tag_targets.json."
     )
     parser.add_argument(
         "--tool",
@@ -220,13 +348,13 @@ def main() -> None:
         "--samples",
         type=int,
         default=20,
-        help="Number of pose samples to average.",
+        help="Number of pose samples to average after pressing R.",
     )
     parser.add_argument(
         "--delay",
         type=float,
         default=0.1,
-        help="Delay in seconds between samples.",
+        help="Delay in seconds between recorded samples after pressing R.",
     )
     parser.add_argument(
         "--tag-size",
@@ -250,7 +378,8 @@ def main() -> None:
 
     try:
         calibrator.start()
-        avg_translation, avg_rotation = calibrator.collect_samples(
+        entry = calibrator.run_guided_calibration(
+            tool_name=args.tool,
             tag_id=args.tag_id,
             sample_count=args.samples,
             delay_s=args.delay,
@@ -258,12 +387,9 @@ def main() -> None:
     finally:
         calibrator.stop()
 
-    entry = calibrator.build_tag_target_entry(
-        tool_name=args.tool,
-        tag_id=args.tag_id,
-        translation_m=avg_translation,
-        rotation_matrix=avg_rotation,
-    )
+    if entry is None:
+        print("\nCalibration cancelled.")
+        return
 
     print("\nCalibration result:")
     print(json.dumps(entry, indent=4))
