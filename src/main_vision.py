@@ -4,9 +4,31 @@ import argparse
 import json
 from typing import Any
 
+import numpy as np
+from scipy.spatial.transform import Rotation as SciRot
+
 from src.camera.realsense_camera import RealSenseCamera
 from src.detection.apriltag_detector import AprilTagDetector
 from src.transformations.apriltag_calculations import AprilTagCalculations
+
+
+def transform_to_pose(T: list[list[float]]) -> dict[str, list[float]]:
+    """
+    Convert a homogeneous transform matrix into translation + quaternion.
+    Quaternion returned as [x, y, z, w].
+    """
+    T = np.array(T)
+
+    R = T[:3, :3]
+    t = T[:3, 3]
+
+    quat = SciRot.from_matrix(R).as_quat()
+    quat = quat / np.linalg.norm(quat)
+
+    return {
+        "translation": t.tolist(),
+        "quaternion": quat.tolist(),
+    }
 
 
 class MainVision:
@@ -78,15 +100,7 @@ class MainVision:
         """
         Capture one frame, detect tags, and compute the pose error for the requested tool.
 
-        Returns a dictionary like:
-        {
-            "tool": "connector_tool",
-            "tag_id": 1,
-            "tag_visible": True,
-            "current_T_tag_cam": [[...], [...], [...], [...]],
-            "desired_T_tag_cam": [[...], [...], [...], [...]],
-            "T_error": [[...], [...], [...], [...]]
-        }
+        Output now includes quaternion representations.
         """
         detected_tags = self.get_detected_tags()
 
@@ -94,6 +108,24 @@ class MainVision:
             tool_name=tool_name,
             detected_tags=detected_tags,
         )
+
+        # Convert transforms to quaternion representation
+        if result.get("tag_visible"):
+
+            if "current_T_tag_cam" in result:
+                result["current_pose"] = transform_to_pose(
+                    result["current_T_tag_cam"]
+                )
+
+            if "desired_T_tag_cam" in result:
+                result["desired_pose"] = transform_to_pose(
+                    result["desired_T_tag_cam"]
+                )
+
+            if "T_error" in result:
+                result["error_pose"] = transform_to_pose(
+                    result["T_error"]
+                )
 
         return result
 
