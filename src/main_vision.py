@@ -147,8 +147,8 @@ def main() -> None:
     parser.add_argument(
         "--tag-size",
         type=float,
-        default=0.03,
-        help="Default AprilTag size in meters.",
+        default=0.08,
+        help="Default AprilTag size in meters.", #TODO:Change to 0.04 for smaller april tag
     )
 
     args = parser.parse_args()
