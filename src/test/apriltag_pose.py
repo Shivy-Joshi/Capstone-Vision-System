@@ -44,7 +44,7 @@ def rotation_matrix_to_quaternion(R_matrix):
 
 
 def main():
-    tag_size_m = 0.0796  # change to your actual printed tag size in meters
+    tag_size_m = 0.08  # change to your actual printed tag size in meters
 
     pipeline = rs.pipeline()
     config = rs.config()
