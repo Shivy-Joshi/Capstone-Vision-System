@@ -1,5 +1,3 @@
-
-
 from __future__ import annotations
 
 import argparse
@@ -47,7 +45,7 @@ class TagCalibration:
         self.camera_intrinsics = self.camera.get_color_intrinsics()
 
         for _ in range(self.warmup_frames):
-            self.camera.get_aligned_frames()
+            self.get_color_frame()
 
         self.is_started = True
 
@@ -55,6 +53,28 @@ class TagCalibration:
         if self.is_started:
             self.camera.stop()
             self.is_started = False
+
+    def get_color_frame(self) -> np.ndarray:
+        """
+        Retrieve a color frame from the camera wrapper while tolerating
+        different RealSenseCamera method names.
+        """
+        if hasattr(self.camera, "get_aligned_frames"):
+            color_frame, _ = self.camera.get_aligned_frames()
+            return color_frame
+
+        if hasattr(self.camera, "get_frames"):
+            frames = self.camera.get_frames()
+            if isinstance(frames, tuple):
+                return frames[0]
+            return frames
+
+        if hasattr(self.camera, "get_color_frame"):
+            return self.camera.get_color_frame()
+
+        raise AttributeError(
+            "RealSenseCamera does not provide get_aligned_frames, get_frames, or get_color_frame."
+        )
 
     @staticmethod
     def draw_tag_overlay(
@@ -141,7 +161,7 @@ class TagCalibration:
 
         try:
             while True:
-                color_frame, _ = self.camera.get_aligned_frames()
+                color_frame = self.get_color_frame()
 
                 detections = self.detector.detect(
                     color_image=color_frame,
@@ -236,7 +256,7 @@ class TagCalibration:
         if self.camera_intrinsics is None:
             raise RuntimeError("Camera intrinsics are unavailable.")
 
-        color_frame, _ = self.camera.get_aligned_frames()
+        color_frame = self.get_color_frame()
 
         detections = self.detector.detect(
             color_image=color_frame,
