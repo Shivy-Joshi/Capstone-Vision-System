@@ -16,8 +16,8 @@ class AprilTagDetector:
         tag_id: {
             "in_frame": True,
             "tag_family": "tag36h11",
-            "translation_m": [x, y, z],
-            "rotation_matrix": [[...], [...], [...]],
+            "translation_m": [x_robot, y_robot, z_robot],
+            "rotation_matrix": [[...], [...], [...]],  # expressed in robot axes
             "center_px": [u, v],
             "corners_px": [[u1, v1], [u2, v2], [u3, v3], [u4, v4]]
         },
@@ -48,6 +48,46 @@ class AprilTagDetector:
             decode_sharpening=decode_sharpening,
             debug=debug,
         )
+
+    @staticmethod
+    def convert_pose_to_robot_axes(
+        translation_m: list[float],
+        rotation_matrix: list[list[float]],
+    ) -> tuple[list[float], list[list[float]]]:
+        """
+        Convert pose data from the camera axis convention to the robot axis convention.
+
+        Camera axes:
+            +Z = depth
+            +X = left
+            +Y = up
+
+        Robot axes:
+            +Y = depth
+            +X = right
+            +Z = up
+
+        Mapping used:
+            X_robot = -X_camera
+            Y_robot = Z_camera
+            Z_robot = Y_camera
+        """
+        axis_transform = np.array(
+            [
+                [-1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0],
+                [0.0, 1.0, 0.0],
+            ],
+            dtype=float,
+        )
+
+        translation_vec = np.array(translation_m, dtype=float).reshape(3)
+        rotation_mat = np.array(rotation_matrix, dtype=float).reshape(3, 3)
+
+        converted_translation = axis_transform @ translation_vec
+        converted_rotation = axis_transform @ rotation_mat @ axis_transform.T
+
+        return converted_translation.tolist(), converted_rotation.tolist()
 
     def detect(
         self,
@@ -109,6 +149,10 @@ class AprilTagDetector:
 
             translation_m = detection.pose_t.reshape(3).astype(float).tolist()
             rotation_matrix = detection.pose_R.astype(float).tolist()
+            translation_m, rotation_matrix = self.convert_pose_to_robot_axes(
+                translation_m,
+                rotation_matrix,
+            )
             center_px = detection.center.astype(float).tolist()
             corners_px = detection.corners.astype(float).tolist()
 
