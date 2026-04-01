@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import pyrealsense2 as rs
 from pupil_apriltags import Detector
+from scipy.spatial.transform import Rotation as SciRot
 
 
 def get_camera_intrinsics(profile):
@@ -32,8 +33,18 @@ def draw_tag(frame, tag):
     )
 
 
+def rotation_matrix_to_quaternion(R_matrix):
+    """
+    Convert a 3x3 rotation matrix to a unit quaternion.
+    Returns quaternion in [x, y, z, w] format.
+    """
+    quat = SciRot.from_matrix(R_matrix).as_quat()
+    quat = quat / np.linalg.norm(quat)
+    return quat
+
+
 def main():
-    tag_size_m = 0.0796  # 30 mm tag; change this to your actual printed tag size in m
+    tag_size_m = 0.0796  # change to your actual printed tag size in meters
 
     pipeline = rs.pipeline()
     config = rs.config()
@@ -75,19 +86,32 @@ def main():
 
                 t = tag.pose_t.reshape(3)
                 R = tag.pose_R
+                q = rotation_matrix_to_quaternion(R)
 
                 cv2.putText(
                     image,
                     f"x={t[0]:.3f} y={t[1]:.3f} z={t[2]:.3f} m",
-                    (20, 30 + 30 * (tag.tag_id % 10)),
+                    (20, 30 + 60 * (tag.tag_id % 6)),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
+                    0.65,
                     (0, 255, 255),
                     2,
                 )
 
-                print(f"Tag {tag.tag_id}: t={t}")
-                print(f"Tag {tag.tag_id}: R=\n{R}\n")
+                cv2.putText(
+                    image,
+                    f"q=({q[0]:.3f}, {q[1]:.3f}, {q[2]:.3f}, {q[3]:.3f})",
+                    (20, 55 + 60 * (tag.tag_id % 6)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.55,
+                    (255, 200, 0),
+                    2,
+                )
+
+                print(f"Tag {tag.tag_id}:")
+                print(f"  t = {t}")
+                print(f"  q = {q}")  # [x, y, z, w]
+                print()
 
             cv2.imshow("AprilTag Pose", image)
             key = cv2.waitKey(1) & 0xFF
