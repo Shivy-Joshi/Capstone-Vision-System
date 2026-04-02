@@ -72,8 +72,8 @@ class MainVision:
             color_image=color_image,
             camera_intrinsics=self.camera_intrinsics,
         )
-        print("\n--- APRILTAG DETECTOR OUTPUT ---")
-        print(json.dumps(detected_tags, indent=2, default=str))
+       ## print("\n--- APRILTAG DETECTOR OUTPUT ---")       #For Debugging
+        ##print(json.dumps(detected_tags, indent=2, default=str))    #For Debugging
         return detected_tags
 
     def get_tool_pose_error(self, tool_name: str) -> dict[str, Any]:
@@ -88,8 +88,8 @@ class MainVision:
             tool_name=tool_name,
             detected_tags=detected_tags,
         )
-        print("\n--- APRILTAG CALCULATIONS OUTPUT ---")
-        print(json.dumps(result, indent=2, default=str))
+       # print("\n--- APRILTAG CALCULATIONS OUTPUT ---")    #For Debugging
+        #print(json.dumps(result, indent=2, default=str))   #For Debugging
         return result
 
 
