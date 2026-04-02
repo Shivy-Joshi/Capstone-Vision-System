@@ -11,7 +11,7 @@
     "fastener_tool": {
       "tag_id": 2,
       "desired_camera_pose_wrt_tag": {
-        "position_m": [0.0, 0.0, 0.10],
+        "position_m": [0.0, 0.0, 0],
         "rpy_deg": [180.0, 0.0, 0.0]
       }
     }
