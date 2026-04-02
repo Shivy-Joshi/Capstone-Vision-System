@@ -99,6 +99,7 @@ class TagCalibration:
         image: np.ndarray,
         tag_id: int,
         tag_data: dict[str, Any],
+        camera_intrinsics: dict[str, Any],
     ) -> np.ndarray:
         # Work on a copy so the original frame is not modified in place.
         display = image.copy()
@@ -125,10 +126,10 @@ class TagCalibration:
             ]
         )
 
-        fx = float(tag_data["camera_fx"])
-        fy = float(tag_data["camera_fy"])
-        cx = float(tag_data["camera_cx"])
-        cy = float(tag_data["camera_cy"])
+        fx = float(camera_intrinsics["fx"])
+        fy = float(camera_intrinsics["fy"])
+        cx = float(camera_intrinsics["cx"])
+        cy = float(camera_intrinsics["cy"])
 
         camera_matrix = np.array(
             [
@@ -138,7 +139,7 @@ class TagCalibration:
             ],
             dtype=np.float32,
         )
-        distortion = np.zeros((4, 1), dtype=np.float32)
+        distortion = np.zeros((5, 1), dtype=np.float32)
 
         rotation_vector, _ = cv2.Rodrigues(rotation_matrix.astype(np.float32))
         translation_vector = translation.astype(np.float32).reshape(3, 1)
@@ -150,7 +151,7 @@ class TagCalibration:
             camera_matrix,
             distortion,
         )
-        image_points = image_points.reshape(-1, 2).astype(int)
+        image_points = np.round(image_points.reshape(-1, 2)).astype(int)
 
         origin = tuple(image_points[0])
         x_axis_end = tuple(image_points[1])
@@ -284,7 +285,12 @@ class TagCalibration:
                 # Pull out only the requested tag because that is the one tied to this tool.
                 tag_data = detections.get(tag_id)
                 if tag_data and tag_data.get("in_frame", False):
-                    display = self.draw_tag_overlay(color_frame, tag_id, tag_data)
+                    display = self.draw_tag_overlay(
+                        color_frame,
+                        tag_id,
+                        tag_data,
+                        self.camera_intrinsics,
+                    )
                 else:
                     display = self.draw_waiting_overlay(color_frame, tag_id)
 
