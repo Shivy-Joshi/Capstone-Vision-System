@@ -28,7 +28,7 @@ class TagCalibration:
 
     def __init__(
         self,
-        tag_size_m: float = 0.03,
+        tag_size_m: float = 0.08,
         warmup_frames: int = 20,
     ) -> None:
         self.camera = RealSenseCamera()
