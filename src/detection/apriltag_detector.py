@@ -75,7 +75,7 @@ class AprilTagDetector:
         axis_transform = np.array(
             [
                 [0.0, 0.0, -1.0],   #robot x
-                [-1.0, 0.0, 0.0],   #robot y
+                [1.0, 0.0, 0.0],   #robot y
                 [0.0, 1.0, 0.0],    # robot z
             ],
             dtype=float,
