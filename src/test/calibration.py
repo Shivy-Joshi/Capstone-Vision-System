@@ -407,7 +407,7 @@ def main() -> None:
     parser.add_argument(
         "--tag-size",
         type=float,
-        default=0.03,
+        default=0.08, #TODO: Change this to the proper size
         help="AprilTag size in meters.",
     )
     parser.add_argument(
