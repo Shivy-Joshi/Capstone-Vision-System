@@ -68,9 +68,9 @@ class AprilTagDetector:
             +Z = up
 
         Mapping used:
-            X_robot = -X_camera
-            Y_robot = Z_camera
-            Z_robot = Y_camera
+            X_robot = z_camera
+            Y_robot = -x_camera
+            Z_robot = y_camera
         """
         axis_transform = np.array(
             [

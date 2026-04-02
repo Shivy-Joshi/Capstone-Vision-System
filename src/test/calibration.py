@@ -107,17 +107,100 @@ class TagCalibration:
         corners = np.array(tag_data["corners_px"], dtype=int)
         center = np.array(tag_data["center_px"], dtype=int)
         translation = np.array(tag_data["translation_m"], dtype=float)
+        rotation_matrix = np.array(tag_data["rotation_matrix"], dtype=float)
+        rpy_deg = SciRot.from_matrix(rotation_matrix).as_euler("xyz", degrees=True)
 
         # Draw the detected tag outline and its center point.
         cv2.polylines(display, [corners], isClosed=True, color=(0, 255, 0), thickness=2)
         cv2.circle(display, tuple(center), 5, (0, 0, 255), -1)
 
-        # Display the live translation estimate so the operator can position the tool.
+        # Draw projected orientation axes on top of the tag.
+        axis_length_m = 0.05
+        axis_points_3d = np.float32(
+            [
+                [0.0, 0.0, 0.0],
+                [axis_length_m, 0.0, 0.0],
+                [0.0, axis_length_m, 0.0],
+                [0.0, 0.0, axis_length_m],
+            ]
+        )
+
+        fx = float(tag_data["camera_fx"])
+        fy = float(tag_data["camera_fy"])
+        cx = float(tag_data["camera_cx"])
+        cy = float(tag_data["camera_cy"])
+
+        camera_matrix = np.array(
+            [
+                [fx, 0.0, cx],
+                [0.0, fy, cy],
+                [0.0, 0.0, 1.0],
+            ],
+            dtype=np.float32,
+        )
+        distortion = np.zeros((4, 1), dtype=np.float32)
+
+        rotation_vector, _ = cv2.Rodrigues(rotation_matrix.astype(np.float32))
+        translation_vector = translation.astype(np.float32).reshape(3, 1)
+
+        image_points, _ = cv2.projectPoints(
+            axis_points_3d,
+            rotation_vector,
+            translation_vector,
+            camera_matrix,
+            distortion,
+        )
+        image_points = image_points.reshape(-1, 2).astype(int)
+
+        origin = tuple(image_points[0])
+        x_axis_end = tuple(image_points[1])
+        y_axis_end = tuple(image_points[2])
+        z_axis_end = tuple(image_points[3])
+
+        cv2.arrowedLine(display, origin, x_axis_end, (0, 0, 255), 3, tipLength=0.2)
+        cv2.arrowedLine(display, origin, y_axis_end, (0, 255, 0), 3, tipLength=0.2)
+        cv2.arrowedLine(display, origin, z_axis_end, (255, 0, 0), 3, tipLength=0.2)
+
+        cv2.putText(
+            display,
+            "X",
+            (x_axis_end[0] + 8, x_axis_end[1]),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (0, 0, 255),
+            2,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            display,
+            "Y",
+            (y_axis_end[0] + 8, y_axis_end[1]),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (0, 255, 0),
+            2,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            display,
+            "Z",
+            (z_axis_end[0] + 8, z_axis_end[1]),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (255, 0, 0),
+            2,
+            cv2.LINE_AA,
+        )
+
+        # Display the live translation and rotation estimate so the operator can position the tool.
         info_lines = [
             f"Tag ID: {tag_id}",
             f"X: {translation[0]:.4f} m",
             f"Y: {translation[1]:.4f} m",
             f"Z: {translation[2]:.4f} m",
+            f"Roll  X: {rpy_deg[0]:.2f} deg",
+            f"Pitch Y: {rpy_deg[1]:.2f} deg",
+            f"Yaw   Z: {rpy_deg[2]:.2f} deg",
             "Press R to record calibration",
             "Press Q to quit",
         ]
