@@ -58,12 +58,12 @@ class AprilTagDetector:
         Convert pose data from the camera axis convention to the robot axis convention.
 
         Camera axes:
-            +Z = depth
+            -Z = depth
             +X = left
             +Y = up
 
         Robot axes:
-            +Y = depth
+            Y = depth
             +X = right
             +Z = up
 
@@ -75,7 +75,7 @@ class AprilTagDetector:
         axis_transform = np.array(
             [
                 [-1.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0],
+                [0.0, 0.0, -1.0], #changed this to -y on the robot for testing
                 [0.0, 1.0, 0.0],
             ],
             dtype=float,
