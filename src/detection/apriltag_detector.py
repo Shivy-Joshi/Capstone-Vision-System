@@ -71,6 +71,9 @@ class AprilTagDetector:
             X_robot = z_camera
             Y_robot = -x_camera
             Z_robot = y_camera
+
+        After the axis conversion, an additional +180 degree roll about the robot X axis
+        is applied to the converted rotation matrix.
         """
         axis_transform = np.array(
             [
@@ -86,6 +89,16 @@ class AprilTagDetector:
 
         converted_translation = axis_transform @ translation_vec
         converted_rotation = axis_transform @ rotation_mat @ axis_transform.T
+
+        x_roll_180 = np.array(
+            [
+                [1.0, 0.0, 0.0],
+                [0.0, -1.0, 0.0],
+                [0.0, 0.0, -1.0],
+            ],
+            dtype=float,
+        )
+        converted_rotation = converted_rotation @ x_roll_180
 
         return converted_translation.tolist(), converted_rotation.tolist()
 
