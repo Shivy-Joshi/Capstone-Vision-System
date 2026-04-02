@@ -8,6 +8,7 @@ from typing import Any
 
 import cv2
 import numpy as np
+from scipy.spatial.transform import Rotation as SciRot
 
 from src.camera.realsense_camera import RealSenseCamera
 from src.detection.apriltag_detector import AprilTagDetector
@@ -22,7 +23,7 @@ class TagCalibration:
     1. Mount the tool in its desired robot pose.
     2. Make sure the tag is visible to the camera.
     3. Run this script and collect multiple samples.
-    4. Copy the printed JSON snippet into tag_targets.json.
+    4. Save or copy the printed JSON snippet into tag_targets.json.
     """
 
     def __init__(
@@ -203,53 +204,6 @@ class TagCalibration:
         finally:
             cv2.destroyWindow(window_name)
 
-    @staticmethod
-    def rotation_matrix_to_quaternion(rotation_matrix: np.ndarray) -> list[float]:
-        """
-        Convert a 3x3 rotation matrix into quaternion [x, y, z, w].
-        """
-        r = np.asarray(rotation_matrix, dtype=float)
-        trace = float(np.trace(r))
-
-        if trace > 0.0:
-            s = np.sqrt(trace + 1.0) * 2.0
-            w = 0.25 * s
-            x = (r[2, 1] - r[1, 2]) / s
-            y = (r[0, 2] - r[2, 0]) / s
-            z = (r[1, 0] - r[0, 1]) / s
-        elif r[0, 0] > r[1, 1] and r[0, 0] > r[2, 2]:
-            s = np.sqrt(1.0 + r[0, 0] - r[1, 1] - r[2, 2]) * 2.0
-            w = (r[2, 1] - r[1, 2]) / s
-            x = 0.25 * s
-            y = (r[0, 1] + r[1, 0]) / s
-            z = (r[0, 2] + r[2, 0]) / s
-        elif r[1, 1] > r[2, 2]:
-            s = np.sqrt(1.0 + r[1, 1] - r[0, 0] - r[2, 2]) * 2.0
-            w = (r[0, 2] - r[2, 0]) / s
-            x = (r[0, 1] + r[1, 0]) / s
-            y = 0.25 * s
-            z = (r[1, 2] + r[2, 1]) / s
-        else:
-            s = np.sqrt(1.0 + r[2, 2] - r[0, 0] - r[1, 1]) * 2.0
-            w = (r[1, 0] - r[0, 1]) / s
-            x = (r[0, 2] + r[2, 0]) / s
-            y = (r[1, 2] + r[2, 1]) / s
-            z = 0.25 * s
-
-        quaternion = np.array([x, y, z, w], dtype=float)
-        quaternion /= np.linalg.norm(quaternion)
-        return quaternion.tolist()
-
-    @staticmethod
-    def build_transform_matrix(
-        translation_m: np.ndarray,
-        rotation_matrix: np.ndarray,
-    ) -> list[list[float]]:
-        transform = np.eye(4, dtype=float)
-        transform[:3, :3] = rotation_matrix
-        transform[:3, 3] = translation_m
-        return transform.tolist()
-
     def get_tag_pose(self, tag_id: int) -> tuple[np.ndarray, np.ndarray] | None:
         if not self.is_started:
             raise RuntimeError("Camera has not been started.")
@@ -314,6 +268,17 @@ class TagCalibration:
 
         return avg_translation, avg_rotation
 
+    @staticmethod
+    def rotation_matrix_to_rpy_deg(rotation_matrix: np.ndarray) -> list[float]:
+        """
+        Convert a 3x3 rotation matrix into XYZ roll, pitch, yaw in degrees.
+        """
+        rpy_deg = SciRot.from_matrix(np.asarray(rotation_matrix, dtype=float)).as_euler(
+            "xyz",
+            degrees=True,
+        )
+        return np.round(rpy_deg, 6).tolist()
+
     def build_tag_target_entry(
         self,
         tool_name: str,
@@ -321,16 +286,17 @@ class TagCalibration:
         translation_m: np.ndarray,
         rotation_matrix: np.ndarray,
     ) -> dict[str, Any]:
-        quaternion_xyzw = self.rotation_matrix_to_quaternion(rotation_matrix)
-        transform_matrix = self.build_transform_matrix(translation_m, rotation_matrix)
+        rpy_deg = self.rotation_matrix_to_rpy_deg(rotation_matrix)
 
         return {
-            tool_name: {
-                "tag_id": tag_id,
-                "target_translation_m": np.round(translation_m, 6).tolist(),
-                "target_rotation_matrix": np.round(rotation_matrix, 6).tolist(),
-                "target_quaternion_xyzw": np.round(quaternion_xyzw, 6).tolist(),
-                "target_transform": np.round(np.array(transform_matrix), 6).tolist(),
+            "tools": {
+                tool_name: {
+                    "tag_id": tag_id,
+                    "desired_camera_pose_wrt_tag": {
+                        "position_m": np.round(translation_m, 6).tolist(),
+                        "rpy_deg": rpy_deg,
+                    },
+                }
             }
         }
 
@@ -345,7 +311,11 @@ def merge_into_existing_config(
     else:
         existing = {}
 
-    existing.update(new_entry)
+    if "tools" not in existing or not isinstance(existing["tools"], dict):
+        existing["tools"] = {}
+
+    new_tools = new_entry.get("tools", {})
+    existing["tools"].update(new_tools)
     return existing
 
 
@@ -356,7 +326,7 @@ def main() -> None:
     parser.add_argument(
         "--tool",
         required=True,
-        help="Tool name to use as the top-level key in tag_targets.json.",
+        help="Tool name to store under tools in tag_targets.json.",
     )
     parser.add_argument(
         "--tag-id",
