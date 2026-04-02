@@ -24,7 +24,7 @@ class MainVision:
     def __init__(
         self,
         config_path: str = "src/config/tag_targets.json",
-        default_tag_size_m: float = 0.03,
+        default_tag_size_m: float = 0.08,                   #TODO: Change this to the correct tag size
     ) -> None:
         self.camera = RealSenseCamera()
         self.detector = AprilTagDetector(default_tag_size_m=default_tag_size_m)
