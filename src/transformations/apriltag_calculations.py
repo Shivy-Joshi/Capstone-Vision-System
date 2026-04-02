@@ -246,7 +246,7 @@ class AprilTagCalculations:
         )
 
         # Invert that transform so it matches the config convention: tag->camera.
-        current_T_tag_cam = self._invert_transform(current_T_cam_tag)
+        #current_T_tag_cam = self._invert_transform(current_T_cam_tag) #TODO commented this for now.
 
         # Build the desired tag->camera transform from the saved calibration values.
         desired_T_tag_cam = self._desired_pose_to_transform(
@@ -256,7 +256,7 @@ class AprilTagCalculations:
 
         # Compute the transform that moves the camera from its current pose to
         # the desired pose. This is effectively current^-1 * desired.
-        T_error = self._invert_transform(current_T_tag_cam) @ desired_T_tag_cam
+        T_error = self._invert_transform(current_T_cam_tag) @ desired_T_tag_cam
 
         # Return both the current pose, the desired pose, and the error transform
         # so downstream code can inspect or use whichever representation it needs.
@@ -264,7 +264,7 @@ class AprilTagCalculations:
             "tool": tool_name,
             "tag_id": tag_id,
             "tag_visible": True,
-            "current_T_tag_cam": current_T_tag_cam.tolist(),
+            "current_T_tag_cam": current_T_cam_tag.tolist(),
             "desired_T_tag_cam": desired_T_tag_cam.tolist(),
             "T_error": T_error.tolist(),
         }
