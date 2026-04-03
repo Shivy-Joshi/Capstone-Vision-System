@@ -115,6 +115,13 @@ class TagCalibration:
         cv2.polylines(display, [corners], isClosed=True, color=(0, 255, 0), thickness=2)
         cv2.circle(display, tuple(center), 5, (0, 0, 255), -1)
 
+        # cv2.projectPoints requires the pose in the original camera frame, but the
+        # detector converts to robot axes before storing.  Invert that conversion here.
+        _A = np.array([[0.0, 0.0, -1.0], [-1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=float)
+        _roll180 = np.array([[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]], dtype=float)
+        t_cam = (_A.T @ translation).astype(np.float32)
+        R_cam = (_A.T @ (rotation_matrix @ _roll180) @ _A).astype(np.float32)
+
         # Draw projected orientation axes aligned with the robot frame.
         # A.T maps robot unit vectors into camera frame; R_cam.T then maps those
         # into the tag's local frame that cv2.projectPoints expects as object points.
@@ -143,13 +150,6 @@ class TagCalibration:
             dtype=np.float32,
         )
         distortion = np.zeros((5, 1), dtype=np.float32)
-
-        # cv2.projectPoints requires the pose in the original camera frame, but the
-        # detector converts to robot axes before storing.  Invert that conversion here.
-        _A = np.array([[0.0, 0.0, -1.0], [-1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=float)
-        _roll180 = np.array([[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]], dtype=float)
-        t_cam = (_A.T @ translation).astype(np.float32)
-        R_cam = (_A.T @ (rotation_matrix @ _roll180) @ _A).astype(np.float32)
 
         rotation_vector, _ = cv2.Rodrigues(R_cam)
         translation_vector = t_cam.reshape(3, 1)
