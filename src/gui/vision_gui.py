@@ -126,10 +126,10 @@ class VisionGUI:
         print(json.dumps(result, indent=2))
 
         if result.get("tag_visible", False):
-            if "current_T_tag_cam" in result:
-                self._pretty_print_matrix("current_T_tag_cam", result["current_T_tag_cam"])
-            if "desired_T_tag_cam" in result:
-                self._pretty_print_matrix("desired_T_tag_cam", result["desired_T_tag_cam"])
+            if "current_T_cam_tag" in result:
+                self._pretty_print_matrix("current_T_cam_tag", result["current_T_cam_tag"])
+            if "desired_T_cam_tag" in result:
+                self._pretty_print_matrix("desired_T_cam_tag", result["desired_T_cam_tag"])
             if "T_error" in result:
                 self._pretty_print_matrix("T_error", result["T_error"])
 
