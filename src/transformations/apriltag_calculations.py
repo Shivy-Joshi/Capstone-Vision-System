@@ -255,10 +255,12 @@ class AprilTagCalculations:
             rpy_deg=desired_pose["rpy_deg"],
         )
 
-        # Compute the error transform: inv(current_T_cam_tag) @ desired_T_cam_tag
-        # This chains  current camera frame → tag frame → desired camera frame,
-        # giving the correction to apply in the current camera frame.
-        T_error = self._invert_transform(current_T_cam_tag) @ desired_T_cam_tag
+        # Compute the error transform: current_T_cam_tag @ inv(desired_T_cam_tag)
+        # This gives the position of the desired camera expressed in the current
+        # camera frame, so T_error.translation directly tells the IK which direction
+        # and how far to move the camera. When the tag is further than calibrated,
+        # the translation correctly points toward the tag (negative X / forward).
+        T_error = current_T_cam_tag @ self._invert_transform(desired_T_cam_tag)
 
         # Return both the current pose, the desired pose, and the error transform
         # so downstream code can inspect or use whichever representation it needs.
