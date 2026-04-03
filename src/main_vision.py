@@ -143,21 +143,38 @@ def main() -> None:
         default="src/config/tag_targets.json",
         help="Path to the tag target config JSON file.",
     )
+    parser.add_argument(
+        "--gui",
+        action="store_true",
+        help=(
+            "Launch the live GUI instead of single-shot JSON output. "
+            "The GUI continuously updates and prints the pose error until Q or ESC is pressed."
+        ),
+    )
 
     args = parser.parse_args()
 
-    # Tag sizes are read from the config file (per-tool tag_size_m or the top-level
-    # default_tag_size_m), so no --tag-size flag is needed here.
-    vision = MainVision(
-        config_path=args.config,
-    )
+    vision = MainVision(config_path=args.config)
 
-    try:
+    if args.gui:
+        # Import here so cv2 is only required when the GUI is actually requested.
+        from src.gui.vision_gui import VisionGUI
+
         vision.start()
-        result = vision.get_tool_pose_error(tool_name=args.tool)
-        print(json.dumps(result, indent=2))
-    finally:
-        vision.stop()
+        try:
+            gui = VisionGUI(vision=vision, tool_name=args.tool)
+            gui.run()
+        finally:
+            vision.stop()
+    else:
+        # Single-shot mode: capture one frame, print JSON result, exit.
+        # This is the path used by the IK script.
+        try:
+            vision.start()
+            result = vision.get_tool_pose_error(tool_name=args.tool)
+            print(json.dumps(result, indent=2))
+        finally:
+            vision.stop()
 
 
 if __name__ == "__main__":
