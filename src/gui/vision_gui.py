@@ -157,12 +157,15 @@ class VisionGUI:
         tvec = t_cam.astype(np.float32).reshape(3, 1)
         dist = np.zeros((5, 1), dtype=np.float32)
 
+        # Express robot-frame axis directions in tag frame.
+        # A.T maps robot unit vectors → camera frame; R_cam.T maps camera → tag frame.
+        robot_axes_in_tag = R_cam.T @ self._AXIS_TRANSFORM.T
         axis_pts_3d = np.float32(
             [
                 [0.0, 0.0, 0.0],
-                [self._AXIS_LEN_M, 0.0, 0.0],
-                [0.0, self._AXIS_LEN_M, 0.0],
-                [0.0, 0.0, self._AXIS_LEN_M],
+                robot_axes_in_tag[:, 0] * self._AXIS_LEN_M,
+                robot_axes_in_tag[:, 1] * self._AXIS_LEN_M,
+                robot_axes_in_tag[:, 2] * self._AXIS_LEN_M,
             ]
         )
         img_pts, _ = cv2.projectPoints(axis_pts_3d, rvec, tvec, camera_matrix, dist)
