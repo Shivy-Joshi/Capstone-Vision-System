@@ -5,6 +5,7 @@ from typing import Any
 
 import cv2
 import numpy as np
+from scipy.spatial.transform import Rotation as SciRot
 
 from src.main_vision import MainVision
 
@@ -257,6 +258,17 @@ class VisionGUI:
             )
         return image
 
+    # ── rotation helper ───────────────────────────────────────────────────────
+
+    @staticmethod
+    def _rpy_deg_from_matrix(R: np.ndarray) -> tuple[float, float, float]:
+        """
+        Extract roll, pitch, yaw in degrees from a 3x3 rotation matrix.
+        Uses the same XYZ Euler convention as the rest of the codebase.
+        """
+        rpy = SciRot.from_matrix(R).as_euler("xyz", degrees=True)
+        return float(rpy[0]), float(rpy[1]), float(rpy[2])
+
     # ── frame composition ─────────────────────────────────────────────────────
 
     def _annotate_frame(
@@ -306,12 +318,16 @@ class VisionGUI:
         ]
         if pose_result.get("tag_visible", False) and "T_error" in pose_result:
             T = np.array(pose_result["T_error"], dtype=float)
+            rx, ry, rz = self._rpy_deg_from_matrix(T[:3, :3])
             hud_lines += [
                 "Tag: VISIBLE",
                 f"tx: {T[0, 3]:+.4f} m",
                 f"ty: {T[1, 3]:+.4f} m",
                 f"tz: {T[2, 3]:+.4f} m",
                 f"|t|: {np.linalg.norm(T[:3, 3]):.4f} m",
+                f"rx: {rx:+.2f} deg",
+                f"ry: {ry:+.2f} deg",
+                f"rz: {rz:+.2f} deg",
             ]
         else:
             hud_lines.append("Tag: NOT VISIBLE")
@@ -331,20 +347,19 @@ class VisionGUI:
 
     # ── terminal output ───────────────────────────────────────────────────────
 
-    @staticmethod
-    def _print_error(pose_result: dict[str, Any]) -> None:
-        """Print the T_error translation to stdout on every frame."""
+    def _print_error(self, pose_result: dict[str, Any]) -> None:
+        """Print T_error translation and rotation to stdout on every frame."""
         tool = pose_result.get("tool", "?")
         if not pose_result.get("tag_visible", False):
             print(f"[{tool}] tag NOT visible")
             return
         T = np.array(pose_result["T_error"], dtype=float)
+        rx, ry, rz = self._rpy_deg_from_matrix(T[:3, :3])
         print(
             f"[{tool}]  "
-            f"tx={T[0, 3]:+.4f}  "
-            f"ty={T[1, 3]:+.4f}  "
-            f"tz={T[2, 3]:+.4f}  "
-            f"|t|={np.linalg.norm(T[:3, 3]):.4f} m"
+            f"tx={T[0, 3]:+.4f}  ty={T[1, 3]:+.4f}  tz={T[2, 3]:+.4f}  "
+            f"|t|={np.linalg.norm(T[:3, 3]):.4f} m  |  "
+            f"rx={rx:+.2f}  ry={ry:+.2f}  rz={rz:+.2f} deg"
         )
 
     @staticmethod
