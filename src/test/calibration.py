@@ -115,17 +115,17 @@ class TagCalibration:
         cv2.polylines(display, [corners], isClosed=True, color=(0, 255, 0), thickness=2)
         cv2.circle(display, tuple(center), 5, (0, 0, 255), -1)
 
-        # Draw projected orientation axes on top of the tag in the robot frame.
-        # R_robot maps from tag frame → robot frame, so R_robot.T maps robot-frame
-        # unit vectors back into tag frame — which is what cv2.projectPoints expects.
+        # Draw projected orientation axes aligned with the robot frame.
+        # A.T maps robot unit vectors into camera frame; R_cam.T then maps those
+        # into the tag's local frame that cv2.projectPoints expects as object points.
         axis_length_m = 0.05
-        R_robot_T = rotation_matrix.T
+        robot_axes_in_tag = R_cam.T @ _A.T
         axis_points_3d = np.float32(
             [
                 [0.0, 0.0, 0.0],
-                R_robot_T[:, 0] * axis_length_m,
-                R_robot_T[:, 1] * axis_length_m,
-                R_robot_T[:, 2] * axis_length_m,
+                robot_axes_in_tag[:, 0] * axis_length_m,
+                robot_axes_in_tag[:, 1] * axis_length_m,
+                robot_axes_in_tag[:, 2] * axis_length_m,
             ]
         )
 
