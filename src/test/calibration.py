@@ -427,11 +427,14 @@ class TagCalibration:
         # Convert the averaged rotation matrix into the config's RPY representation.
         rpy_deg = self.rotation_matrix_to_rpy_deg(rotation_matrix)
 
-        # Build the exact nested dictionary shape expected by tag_targets.json.
+        # Build the exact nested dictionary shape expected by tag_targets.json,
+        # including the physical tag size used during calibration so other scripts
+        # can read it directly from the config instead of hardcoding it.
         return {
             "tools": {
                 tool_name: {
                     "tag_id": tag_id,
+                    "tag_size_m": self.tag_size_m,
                     "desired_camera_pose_wrt_tag": {
                         "position_m": np.round(translation_m, 6).tolist(),
                         "rpy_deg": rpy_deg,
@@ -446,6 +449,7 @@ class TagCalibration:
 def merge_into_existing_config(
     config_path: Path,
     new_entry: dict[str, Any],
+    update_default_tag_size: bool = False,
 ) -> dict[str, Any]:
     # Load the existing config if it already exists; otherwise start from empty.
     if config_path.exists():
@@ -453,6 +457,22 @@ def merge_into_existing_config(
             existing = json.load(file)
     else:
         existing = {}
+
+    # Optionally update the top-level default tag size.  This is useful when
+    # calibrating for the first time or when all tags share a new size.
+    if update_default_tag_size and "tools" in new_entry:
+        # Infer the default from the first (and only) tool in the new entry.
+        first_tool = next(iter(new_entry["tools"].values()), {})
+        new_default = first_tool.get("tag_size_m")
+        if new_default is not None:
+            existing["default_tag_size_m"] = new_default
+
+    # If no default exists yet at all, seed it from the new tool entry.
+    if "default_tag_size_m" not in existing and "tools" in new_entry:
+        first_tool = next(iter(new_entry["tools"].values()), {})
+        new_default = first_tool.get("tag_size_m")
+        if new_default is not None:
+            existing["default_tag_size_m"] = new_default
 
     # Make sure the top-level "tools" key exists and has the correct type.
     if "tools" not in existing or not isinstance(existing["tools"], dict):
@@ -496,8 +516,11 @@ def main() -> None:
     parser.add_argument(
         "--tag-size",
         type=float,
-        default=0.08, #TODO: Change this to the proper size
-        help="AprilTag size in meters.",
+        default=None,
+        help=(
+            "AprilTag size in meters (e.g. 0.08 for an 80 mm tag). "
+            "If omitted you will be prompted to enter it interactively."
+        ),
     )
     parser.add_argument(
         "--config",
@@ -511,8 +534,38 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    # Create the calibrator using the requested physical tag size.
-    calibrator = TagCalibration(tag_size_m=args.tag_size)
+    # Resolve the tag size: prefer the CLI flag, then fall back to an interactive
+    # prompt so the operator always sets the value explicitly rather than relying
+    # on a silent hardcoded default.
+    tag_size_m = args.tag_size
+    if tag_size_m is None:
+        # Try to suggest the existing default from the config file as a hint.
+        config_path_hint = Path(args.config)
+        existing_default: float | None = None
+        if config_path_hint.exists():
+            try:
+                with config_path_hint.open("r", encoding="utf-8") as _f:
+                    existing_default = json.load(_f).get("default_tag_size_m")
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        hint_str = f" [{existing_default} m]" if existing_default is not None else " [e.g. 0.08]"
+        while tag_size_m is None:
+            raw = input(f"Enter AprilTag size in metres{hint_str}: ").strip()
+            if raw == "" and existing_default is not None:
+                tag_size_m = existing_default
+                print(f"Using existing default: {tag_size_m} m")
+            else:
+                try:
+                    tag_size_m = float(raw)
+                    if tag_size_m <= 0:
+                        print("Tag size must be greater than zero. Please try again.")
+                        tag_size_m = None
+                except ValueError:
+                    print("Invalid input — please enter a number such as 0.08.")
+
+    # Create the calibrator using the confirmed physical tag size.
+    calibrator = TagCalibration(tag_size_m=tag_size_m)
 
     # Always stop the camera in a finally block so the device is not left open.
     try:
@@ -538,7 +591,16 @@ def main() -> None:
     # Optionally merge the new calibration into the config file on disk.
     if args.write:
         config_path = Path(args.config)
-        merged = merge_into_existing_config(config_path, entry)
+
+        # Ask whether to update the top-level default tag size as well.
+        update_default = False
+        raw_update = input(
+            f"\nAlso update the default_tag_size_m in the config to {tag_size_m} m? (y/N): "
+        ).strip().lower()
+        if raw_update == "y":
+            update_default = True
+
+        merged = merge_into_existing_config(config_path, entry, update_default_tag_size=update_default)
         config_path.parent.mkdir(parents=True, exist_ok=True)
         with config_path.open("w", encoding="utf-8") as file:
             json.dump(merged, file, indent=4)

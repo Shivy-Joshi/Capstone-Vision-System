@@ -1,7 +1,9 @@
 {
+  "default_tag_size_m": 0.08,
   "tools": {
     "claw_tool": {
       "tag_id": 8,
+      "tag_size_m": 0.08,
       "desired_camera_pose_wrt_tag": {
         "position_m": [0.0, 0.0, 0.12],
         "rpy_deg": [180.0, 0.0, 0.0]
@@ -10,6 +12,7 @@
 
     "fastener_tool": {
       "tag_id": 7,
+      "tag_size_m": 0.08,
       "desired_camera_pose_wrt_tag": {
         "position_m": [0.0, 0.0, 0],
         "rpy_deg": [180.0, 0.0, 0.0]

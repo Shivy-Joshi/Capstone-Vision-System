@@ -27,15 +27,14 @@ class VisionGUI:
         self,
         tool_name: str,
         config_path: str = "src/config/tag_targets.json",
-        default_tag_size_m: float = 0.03,
         window_name: str = "Vision GUI",
     ) -> None:
         self.tool_name = tool_name
         self.window_name = window_name
 
+        # Tag sizes are read from the config file, so no size param is needed here.
         self.vision = MainVision(
             config_path=config_path,
-            default_tag_size_m=default_tag_size_m,
         )
 
     @staticmethod
@@ -154,9 +153,13 @@ class VisionGUI:
                 if color_image is None:
                     continue
 
+                # Detect with the tag size specific to the tracked tool so that
+                # pose estimation uses the correct physical dimensions.
+                tag_size_m = self.vision.get_tag_size_for_tool(self.tool_name)
                 detected_tags = self.vision.detector.detect(
                     color_image=color_image,
                     camera_intrinsics=self.vision.camera_intrinsics,
+                    tag_size_m=tag_size_m,
                 )
 
                 pose_result = self.vision.calculations.calculate_pose_error(
@@ -215,12 +218,6 @@ def main() -> None:
         help="Path to the tag target config JSON file.",
     )
     parser.add_argument(
-        "--tag-size",
-        type=float,
-        default=0.03,
-        help="Default AprilTag size in meters.",
-    )
-    parser.add_argument(
         "--window-name",
         default="Vision GUI",
         help="Display window name.",
@@ -228,10 +225,10 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    # Tag sizes come from the config file — no --tag-size flag needed.
     gui = VisionGUI(
         tool_name=args.tool,
         config_path=args.config,
-        default_tag_size_m=args.tag_size,
         window_name=args.window_name,
     )
     gui.run()
