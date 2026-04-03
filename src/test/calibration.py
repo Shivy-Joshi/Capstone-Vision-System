@@ -141,8 +141,15 @@ class TagCalibration:
         )
         distortion = np.zeros((5, 1), dtype=np.float32)
 
-        rotation_vector, _ = cv2.Rodrigues(rotation_matrix.astype(np.float32))
-        translation_vector = translation.astype(np.float32).reshape(3, 1)
+        # cv2.projectPoints requires the pose in the original camera frame, but the
+        # detector converts to robot axes before storing.  Invert that conversion here.
+        _A = np.array([[0.0, 0.0, -1.0], [-1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=float)
+        _roll180 = np.array([[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]], dtype=float)
+        t_cam = (_A.T @ translation).astype(np.float32)
+        R_cam = (_A.T @ (rotation_matrix @ _roll180) @ _A).astype(np.float32)
+
+        rotation_vector, _ = cv2.Rodrigues(R_cam)
+        translation_vector = t_cam.reshape(3, 1)
 
         image_points, _ = cv2.projectPoints(
             axis_points_3d,
